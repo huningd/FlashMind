@@ -1,0 +1,7 @@
+{
+  "name": "FlashMind - Lernkarten",
+  "description": "Eine moderne PWA zum Lernen mit Karteikarten, unterstützt durch SQLite und Spaced Repetition.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
