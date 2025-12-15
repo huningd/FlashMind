@@ -87,6 +87,29 @@ class DatabaseService {
     await localforage.setItem(DB_KEY, data);
   }
 
+  // --- Helpers for Import/Export ---
+
+  private u8ToBase64(u8: Uint8Array): string {
+    const CHUNK_SIZE = 8192;
+    let binary = '';
+    const len = u8.byteLength;
+    for (let i = 0; i < len; i += CHUNK_SIZE) {
+      const chunk = u8.subarray(i, Math.min(i + CHUNK_SIZE, len));
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    return window.btoa(binary);
+  }
+
+  private base64ToU8(base64: string): Uint8Array {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  }
+
   // --- Decks ---
 
   async getDecks(): Promise<Deck[]> {
@@ -116,15 +139,99 @@ class DatabaseService {
     });
   }
 
-  async createDeck(name: string) {
+  async createDeck(name: string): Promise<number> {
     if (!this.db) await this.init();
     this.db.run("INSERT INTO decks (name, created_at) VALUES (?, ?)", [name, Date.now()]);
+    const result = this.db.exec("SELECT last_insert_rowid()");
+    const id = result[0].values[0][0] as number;
     await this.save();
+    return id;
   }
 
   async deleteDeck(id: number) {
     if (!this.db) await this.init();
     this.db.run("DELETE FROM decks WHERE id = ?", [id]);
+    await this.save();
+  }
+
+  // --- Export / Import ---
+
+  async exportDeck(id: number): Promise<string> {
+    if (!this.db) await this.init();
+    
+    // Get Deck Info
+    const deckRes = this.db.exec("SELECT name FROM decks WHERE id = ?", [id]);
+    if (!deckRes.length || !deckRes[0].values.length) throw new Error("Deck not found");
+    const deckName = deckRes[0].values[0][0];
+
+    // Get Cards
+    const cards = await this.getCards(id);
+    
+    const exportData = {
+      name: deckName,
+      version: 1,
+      exported_at: Date.now(),
+      cards: cards.map(c => ({
+        front_text: c.front_text,
+        back_text: c.back_text,
+        front_image: c.front_image ? this.u8ToBase64(c.front_image) : null,
+        back_image: c.back_image ? this.u8ToBase64(c.back_image) : null,
+      }))
+    };
+    
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  async importDeck(jsonContent: string): Promise<void> {
+    if (!this.db) await this.init();
+    
+    let data;
+    try {
+      data = JSON.parse(jsonContent);
+    } catch (e) {
+      throw new Error("Ungültiges Dateiformat");
+    }
+
+    if (!data.name || !Array.isArray(data.cards)) {
+      throw new Error("Ungültige Stapel-Daten");
+    }
+
+    // Create new deck with suffix to avoid confusion
+    const deckId = await this.createDeck(`${data.name} (Import)`);
+
+    const stmt = this.db.prepare(`
+      INSERT INTO cards (
+        deck_id, front_text, front_image, back_text, back_image, 
+        created_at, next_review_due, interval, ease_factor, reviews
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = Date.now();
+    
+    try {
+      this.db.exec("BEGIN TRANSACTION");
+      for (const card of data.cards) {
+        stmt.run([
+          deckId,
+          card.front_text || '',
+          card.front_image ? this.base64ToU8(card.front_image) : null,
+          card.back_text || '',
+          card.back_image ? this.base64ToU8(card.back_image) : null,
+          now,
+          now, // Due immediately
+          0,
+          2.5,
+          0
+        ]);
+      }
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      stmt.free();
+      throw e;
+    } 
+    
+    stmt.free();
     await this.save();
   }
 
