@@ -5,7 +5,7 @@ import { DeckList } from './components/DeckList';
 import { CardEditor } from './components/CardEditor';
 import { StudySession } from './components/StudySession';
 import { StudyOverview } from './components/StudyOverview';
-import { Plus, Trash, ArrowLeft, RotateCw, Layers, BarChart3 } from 'lucide-react';
+import { Plus, Trash, ArrowLeft, RotateCw, Layers, BarChart3, Pencil } from 'lucide-react';
 
 enum View {
   HOME,
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Initial Data Load
@@ -66,6 +67,15 @@ const App: React.FC = () => {
         await refreshDecks();
       }
     }
+  };
+
+  const openEditor = (card?: Card) => {
+    if (card) {
+      setEditingCard(card);
+    } else {
+      setEditingCard(null);
+    }
+    setIsEditorOpen(true);
   };
 
   if (loading) {
@@ -149,7 +159,7 @@ const App: React.FC = () => {
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-semibold text-gray-700">Kartenliste</h3>
                 <button 
-                  onClick={() => setIsEditorOpen(true)}
+                  onClick={() => openEditor()}
                   className="text-sm bg-white border border-gray-200 hover:border-primary hover:text-primary text-gray-600 px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm"
                 >
                   <Plus size={16} className="mr-1" /> Karte hinzufügen
@@ -163,14 +173,25 @@ const App: React.FC = () => {
                       <div className="font-medium text-gray-800 mb-1 line-clamp-1">{card.front_text || '(Bild)'}</div>
                       <div className="text-sm text-gray-500 line-clamp-1">{card.back_text || '(Bild)'}</div>
                     </div>
-                    <div className="flex items-center gap-2">
-                         {card.front_image && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">Bild</span>}
+                    <div className="flex items-center gap-1">
+                         {card.front_image && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded mr-2">Bild</span>}
+                         <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditor(card);
+                            }}
+                            className="text-gray-300 hover:text-primary p-2 transition-colors"
+                            title="Bearbeiten"
+                        >
+                            <Pencil size={16} />
+                        </button>
                          <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteCard(card.id);
                             }}
-                            className="text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"
+                            className="text-gray-300 hover:text-red-500 p-2 transition-colors"
+                            title="Löschen"
                         >
                             <Trash size={16} />
                         </button>
@@ -212,7 +233,11 @@ const App: React.FC = () => {
       {isEditorOpen && selectedDeck && (
         <CardEditor 
           deckId={selectedDeck.id} 
-          onClose={() => setIsEditorOpen(false)} 
+          cardToEdit={editingCard}
+          onClose={() => {
+            setIsEditorOpen(false);
+            setEditingCard(null);
+          }} 
           onSaved={handleCardSaved}
         />
       )}

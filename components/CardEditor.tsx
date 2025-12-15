@@ -1,14 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
+import { Card } from '../types';
 import { X, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 interface CardEditorProps {
   deckId: number;
   onClose: () => void;
   onSaved: () => void;
+  cardToEdit?: Card | null;
 }
 
-export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved }) => {
+export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved, cardToEdit }) => {
   const [frontText, setFrontText] = useState('');
   const [backText, setBackText] = useState('');
   const [frontImage, setFrontImage] = useState<Uint8Array | null>(null);
@@ -17,6 +19,31 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
   const [backPreview, setBackPreview] = useState<string | null>(null);
   
   const [activeSide, setActiveSide] = useState<'front' | 'back'>('front');
+
+  // Initialize form if editing an existing card
+  useEffect(() => {
+    if (cardToEdit) {
+      setFrontText(cardToEdit.front_text);
+      setBackText(cardToEdit.back_text);
+      setFrontImage(cardToEdit.front_image || null);
+      setBackImage(cardToEdit.back_image || null);
+
+      if (cardToEdit.front_image) {
+        const blob = new Blob([cardToEdit.front_image]);
+        setFrontPreview(URL.createObjectURL(blob));
+      }
+      if (cardToEdit.back_image) {
+        const blob = new Blob([cardToEdit.back_image]);
+        setBackPreview(URL.createObjectURL(blob));
+      }
+    }
+    
+    // Cleanup preview URLs on unmount
+    return () => {
+      if (frontPreview) URL.revokeObjectURL(frontPreview);
+      if (backPreview) URL.revokeObjectURL(backPreview);
+    };
+  }, [cardToEdit]); // Run only when cardToEdit changes
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
     const file = e.target.files?.[0];
@@ -54,30 +81,46 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
     e.preventDefault();
     if (!frontText.trim() && !frontImage) return; // Need at least something on front
 
-    await db.createCard({
-      deck_id: deckId,
-      front_text: frontText,
-      front_image: frontImage,
-      back_text: backText,
-      back_image: backImage
-    });
+    if (cardToEdit) {
+      // Update existing card
+      await db.updateCard({
+        ...cardToEdit,
+        front_text: frontText,
+        front_image: frontImage,
+        back_text: backText,
+        back_image: backImage
+      });
+      onSaved();
+      onClose(); // Close modal immediately after edit
+    } else {
+      // Create new card
+      await db.createCard({
+        deck_id: deckId,
+        front_text: frontText,
+        front_image: frontImage,
+        back_text: backText,
+        back_image: backImage
+      });
 
-    onSaved();
-    // Reset form for next card
-    setFrontText('');
-    setBackText('');
-    setFrontImage(null);
-    setBackImage(null);
-    setFrontPreview(null);
-    setBackPreview(null);
-    setActiveSide('front');
+      onSaved();
+      // Reset form for next card (keep modal open)
+      setFrontText('');
+      setBackText('');
+      setFrontImage(null);
+      setBackImage(null);
+      setFrontPreview(null);
+      setBackPreview(null);
+      setActiveSide('front');
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
         <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">Neue Karte erstellen</h2>
+          <h2 className="text-xl font-bold text-gray-800">
+            {cardToEdit ? 'Karte bearbeiten' : 'Neue Karte erstellen'}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors">
             <X size={20} />
           </button>
@@ -183,7 +226,7 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
             onClick={handleSave}
             className="flex-1 text-white bg-primary hover:bg-indigo-700 font-medium py-2.5 rounded-xl shadow-md transition-colors"
           >
-            Speichern & Nächste
+            {cardToEdit ? 'Speichern' : 'Speichern & Nächste'}
           </button>
         </div>
       </div>
