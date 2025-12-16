@@ -7,7 +7,8 @@ import { StudySession } from './components/StudySession';
 import { StudyOverview } from './components/StudyOverview';
 import { AIGenerator } from './components/AIGenerator';
 import { Settings } from './components/Settings';
-import { Plus, Trash, ArrowLeft, RotateCw, Layers, BarChart3, Pencil, Sparkles, AlertTriangle, Moon, Sun, Settings as SettingsIcon } from 'lucide-react';
+import { Disclaimer } from './components/Disclaimer';
+import { Plus, Trash, ArrowLeft, RotateCw, Layers, BarChart3, Pencil, Sparkles, AlertTriangle, Moon, Sun, Settings as SettingsIcon, Info } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 
 enum View {
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
   
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -54,7 +56,7 @@ const App: React.FC = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  // Initial Data Load
+  // Initial Data Load and Disclaimer Check
   useEffect(() => {
     const init = async () => {
       try {
@@ -68,7 +70,18 @@ const App: React.FC = () => {
       }
     };
     init();
+
+    // Check disclaimer
+    const disclaimerAccepted = localStorage.getItem('disclaimer_accepted');
+    if (!disclaimerAccepted) {
+      setShowDisclaimer(true);
+    }
   }, []);
+
+  const handleDisclaimerClose = () => {
+    localStorage.setItem('disclaimer_accepted', 'true');
+    setShowDisclaimer(false);
+  };
 
   const refreshDecks = async () => {
     const d = await db.getDecks();
@@ -157,6 +170,10 @@ const App: React.FC = () => {
   // Main Layout for Home, Overview and Detail
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 pb-20 transition-colors duration-300">
+      
+      {/* Disclaimer Modal */}
+      {showDisclaimer && <Disclaimer onClose={handleDisclaimerClose} />}
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10 transition-colors duration-300">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -174,6 +191,13 @@ const App: React.FC = () => {
                   {t('deck.learn_now')}
                </button>
             )}
+            <button 
+              onClick={() => setShowDisclaimer(true)}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+              title={t('disclaimer.title')}
+            >
+              <Info size={20} />
+            </button>
             <button 
               onClick={() => setView(View.SETTINGS)}
               className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors ${view === View.SETTINGS ? 'text-primary dark:text-primary bg-indigo-50 dark:bg-indigo-900/30' : ''}`}

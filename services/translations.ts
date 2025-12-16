@@ -118,7 +118,11 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "settings.import_lang": "Sprachdatei importieren",
     "settings.import_success": "Sprache erfolgreich importiert!",
     "settings.import_error": "Fehler beim Import der Sprachdatei.",
-    "settings.back": "Zurück zur Übersicht"
+    "settings.back": "Zurück zur Übersicht",
+
+    "disclaimer.title": "Haftungsausschluss & Datenschutz",
+    "disclaimer.text": "Die Nutzung dieser App erfolgt auf eigene Gefahr. Alle Daten (Lernkarten, Fortschritte, Einstellungen) werden ausschließlich lokal in deinem Browser gespeichert (IndexedDB). Es erfolgt keine Synchronisation mit unseren Servern.\n\nHinweis zur AI: Wenn du die Generierungsfunktionen nutzt, werden die Eingaben (Text/Bilder) an die Google Gemini API gesendet. Dein API Key wird ebenfalls nur lokal gespeichert.",
+    "disclaimer.accept": "Verstanden"
   },
   en: {
     "app.title": "FlashMind",
@@ -236,6 +240,10 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "settings.import_lang": "Import Language File",
     "settings.import_success": "Language imported successfully!",
     "settings.import_error": "Error importing language file.",
-    "settings.back": "Back to Overview"
+    "settings.back": "Back to Overview",
+
+    "disclaimer.title": "Disclaimer & Privacy",
+    "disclaimer.text": "Usage of this app is at your own risk. All data (flashcards, progress, settings) is stored exclusively locally in your browser (IndexedDB). There is no synchronization with our servers.\n\nAI Note: When using generation features, inputs (text/images) are sent to the Google Gemini API. Your API Key is also stored locally only.",
+    "disclaimer.accept": "Understood"
   }
 };
