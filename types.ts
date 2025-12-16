@@ -1,6 +1,7 @@
 export interface Deck {
   id: number;
   name: string;
+  description?: string;
   created_at: number;
   card_count?: number;
   due_count?: number;
