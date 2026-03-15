@@ -273,11 +273,11 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ deckId, deckDescriptio
                          <div className="flex-1 space-y-2">
                            <div>
                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{t('editor.front')}</span>
-                             <p className="text-gray-800 dark:text-gray-200 text-sm font-medium">{card.front}</p>
+                             <p className="text-gray-800 dark:text-gray-200 text-sm font-medium whitespace-pre-wrap">{card.front}</p>
                            </div>
                            <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{t('editor.back')}</span>
-                             <p className="text-gray-600 dark:text-gray-300 text-sm">{card.back}</p>
+                             <p className="text-gray-600 dark:text-gray-300 text-sm whitespace-pre-wrap">{card.back}</p>
                            </div>
                          </div>
                        </div>

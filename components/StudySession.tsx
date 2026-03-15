@@ -188,7 +188,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                             )}
                         </div>
                     )}
-                    <p className="text-xl sm:text-3xl font-medium text-gray-800 dark:text-gray-100 break-words px-2 sm:px-4">
+                    <p className="text-xl sm:text-3xl font-medium text-gray-800 dark:text-gray-100 break-words px-2 sm:px-4 whitespace-pre-wrap">
                         {isFlipped ? currentCard.back_text : currentCard.front_text}
                     </p>
                 </div>

@@ -289,8 +289,8 @@ const App: React.FC = () => {
                 {cards.map(card => (
                   <li key={card.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex justify-between items-center group">
                     <div className="flex-1 pr-4">
-                      <div className="font-medium text-gray-800 dark:text-gray-200 mb-1 line-clamp-1">{card.front_text || `(${t('deck.image_label')})`}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{card.back_text || `(${t('deck.image_label')})`}</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-200 mb-1 whitespace-pre-wrap">{card.front_text || `(${t('deck.image_label')})`}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{card.back_text || `(${t('deck.image_label')})`}</div>
                     </div>
                     <div className="flex items-center gap-1">
                          {card.front_image && <span className="text-xs bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded mr-2">{t('deck.image_label')}</span>}
