@@ -30,22 +30,44 @@ class DatabaseService {
         this.db = new SQL.Database(savedDb);
       } else {
         this.db = new SQL.Database();
-        this.createTables();
-        this.save();
       }
 
+      this.createTables();
+      
       // Enable foreign keys for cascading deletes
       this.db.run("PRAGMA foreign_keys = ON;");
 
       // MIGRATION: Attempt to add description column if it doesn't exist
-      // sql.js doesn't have "IF COLUMN EXISTS", so we try/catch the alter table
       try {
         this.db.run("ALTER TABLE decks ADD COLUMN description TEXT;");
-        await this.save();
+      } catch (e) {}
+
+      // MIGRATION: Move front_image to card_front_images if column exists
+      try {
+        const check = this.db.exec("PRAGMA table_info(cards)");
+        const hasFrontImage = check[0].values.some((v: any) => v[1] === 'front_image');
+        if (hasFrontImage) {
+          const cardsWithImages = this.db.exec("SELECT id, front_image FROM cards WHERE front_image IS NOT NULL");
+          if (cardsWithImages.length > 0) {
+            for (const row of cardsWithImages[0].values) {
+              const [cardId, image] = row;
+              // Check if already migrated to avoid duplicates
+              const alreadyMigrated = this.db.exec("SELECT count(*) FROM card_front_images WHERE card_id = ?", [cardId]);
+              if (alreadyMigrated[0].values[0][0] === 0) {
+                this.db.run("INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)", [cardId, image, 0]);
+              }
+            }
+          }
+          // We can't easily drop columns in SQLite < 3.35.0, so we just leave it or recreate table.
+          // For simplicity in this environment, we'll just ignore the old column.
+          // But we should probably clear it to save space.
+          this.db.run("UPDATE cards SET front_image = NULL");
+        }
       } catch (e) {
-        // Column likely already exists, ignore error
+        console.error("Migration error", e);
       }
 
+      await this.save();
       this.isReady = true;
     } catch (e) {
       console.error("Failed to initialize database", e);
@@ -68,7 +90,6 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         deck_id INTEGER NOT NULL,
         front_text TEXT,
-        front_image BLOB,
         back_text TEXT,
         back_image BLOB,
         created_at INTEGER NOT NULL,
@@ -77,6 +98,16 @@ class DatabaseService {
         ease_factor REAL DEFAULT 2.5,
         reviews INTEGER DEFAULT 0,
         FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE
+      );
+    `);
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS card_front_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_id INTEGER NOT NULL,
+        image BLOB NOT NULL,
+        position INTEGER DEFAULT 0,
+        FOREIGN KEY(card_id) REFERENCES cards(id) ON DELETE CASCADE
       );
     `);
 
@@ -182,12 +213,12 @@ class DatabaseService {
     const exportData = {
       name: deckName,
       description: deckDesc || "",
-      version: 1,
+      version: 2, // Bump version
       exported_at: Date.now(),
       cards: cards.map(c => ({
         front_text: c.front_text,
         back_text: c.back_text,
-        front_image: c.front_image ? this.u8ToBase64(c.front_image) : null,
+        front_images: c.front_images ? c.front_images.map(img => this.u8ToBase64(img)) : [],
         back_image: c.back_image ? this.u8ToBase64(c.back_image) : null,
       }))
     };
@@ -212,11 +243,15 @@ class DatabaseService {
     // Create new deck with suffix to avoid confusion
     const deckId = await this.createDeck(`${data.name} (Import)`, data.description || "");
 
-    const stmt = this.db.prepare(`
+    const cardStmt = this.db.prepare(`
       INSERT INTO cards (
-        deck_id, front_text, front_image, back_text, back_image, 
+        deck_id, front_text, back_text, back_image, 
         created_at, next_review_due, interval, ease_factor, reviews
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const imageStmt = this.db.prepare(`
+      INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)
     `);
 
     const now = Date.now();
@@ -224,10 +259,9 @@ class DatabaseService {
     try {
       this.db.exec("BEGIN TRANSACTION");
       for (const card of data.cards) {
-        stmt.run([
+        cardStmt.run([
           deckId,
           card.front_text || '',
-          card.front_image ? this.base64ToU8(card.front_image) : null,
           card.back_text || '',
           card.back_image ? this.base64ToU8(card.back_image) : null,
           now,
@@ -236,15 +270,29 @@ class DatabaseService {
           2.5,
           0
         ]);
+        
+        const res = this.db.exec("SELECT last_insert_rowid()");
+        const cardId = res[0].values[0][0];
+
+        if (Array.isArray(card.front_images)) {
+          card.front_images.forEach((imgBase64: string, idx: number) => {
+            imageStmt.run([cardId, this.base64ToU8(imgBase64), idx]);
+          });
+        } else if (card.front_image) {
+          // Legacy support
+          imageStmt.run([cardId, this.base64ToU8(card.front_image), 0]);
+        }
       }
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
-      stmt.free();
+      cardStmt.free();
+      imageStmt.free();
       throw e;
     } 
     
-    stmt.free();
+    cardStmt.free();
+    imageStmt.free();
     await this.save();
   }
 
@@ -256,13 +304,25 @@ class DatabaseService {
     if (result.length === 0) return [];
 
     const columns = result[0].columns;
-    return result[0].values.map((v: any[]) => {
+    const cards = result[0].values.map((v: any[]) => {
       const card: any = {};
       columns.forEach((col: string, i: number) => {
         card[col] = v[i];
       });
       return card as Card;
     });
+
+    // Fetch images for each card
+    for (const card of cards) {
+      const imgRes = this.db.exec("SELECT image FROM card_front_images WHERE card_id = ? ORDER BY position ASC", [card.id]);
+      if (imgRes.length > 0) {
+        card.front_images = imgRes[0].values.map((v: any) => v[0]);
+      } else {
+        card.front_images = [];
+      }
+    }
+
+    return cards;
   }
 
   async getDueCards(deckId: number): Promise<Card[]> {
@@ -272,28 +332,39 @@ class DatabaseService {
     if (result.length === 0) return [];
 
     const columns = result[0].columns;
-    return result[0].values.map((v: any[]) => {
+    const cards = result[0].values.map((v: any[]) => {
       const card: any = {};
       columns.forEach((col: string, i: number) => {
         card[col] = v[i];
       });
       return card as Card;
     });
+
+    // Fetch images for each card
+    for (const card of cards) {
+      const imgRes = this.db.exec("SELECT image FROM card_front_images WHERE card_id = ? ORDER BY position ASC", [card.id]);
+      if (imgRes.length > 0) {
+        card.front_images = imgRes[0].values.map((v: any) => v[0]);
+      } else {
+        card.front_images = [];
+      }
+    }
+
+    return cards;
   }
 
   async createCard(card: Partial<Card>) {
     if (!this.db) await this.init();
     const stmt = this.db.prepare(`
       INSERT INTO cards (
-        deck_id, front_text, front_image, back_text, back_image, 
+        deck_id, front_text, back_text, back_image, 
         created_at, next_review_due, interval, ease_factor, reviews
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run([
       card.deck_id,
       card.front_text || '',
-      card.front_image || null,
       card.back_text || '',
       card.back_image || null,
       Date.now(),
@@ -302,6 +373,18 @@ class DatabaseService {
       2.5,
       0
     ]);
+    
+    const res = this.db.exec("SELECT last_insert_rowid()");
+    const cardId = res[0].values[0][0];
+
+    if (card.front_images && card.front_images.length > 0) {
+      const imgStmt = this.db.prepare("INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)");
+      card.front_images.forEach((img, idx) => {
+        imgStmt.run([cardId, img, idx]);
+      });
+      imgStmt.free();
+    }
+
     stmt.free();
     await this.save();
   }
@@ -310,17 +393,27 @@ class DatabaseService {
      if (!this.db) await this.init();
      const stmt = this.db.prepare(`
         UPDATE cards SET 
-        front_text = ?, front_image = ?, back_text = ?, back_image = ?
+        front_text = ?, back_text = ?, back_image = ?
         WHERE id = ?
      `);
      stmt.run([
          card.front_text,
-         card.front_image || null,
          card.back_text,
          card.back_image || null,
          card.id
      ]);
      stmt.free();
+
+     // Update images: delete old and insert new
+     this.db.run("DELETE FROM card_front_images WHERE card_id = ?", [card.id]);
+     if (card.front_images && card.front_images.length > 0) {
+       const imgStmt = this.db.prepare("INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)");
+       card.front_images.forEach((img, idx) => {
+         imgStmt.run([card.id, img, idx]);
+       });
+       imgStmt.free();
+     }
+
      await this.save();
   }
 
@@ -328,6 +421,29 @@ class DatabaseService {
       if (!this.db) await this.init();
       this.db.run("DELETE FROM cards WHERE id = ?", [id]);
       await this.save();
+  }
+
+  async resetDeckCards(deckId: number) {
+    if (!this.db) await this.init();
+    const now = Date.now();
+    this.db.run(`
+      UPDATE cards SET 
+        next_review_due = ?, 
+        interval = 0, 
+        ease_factor = 2.5, 
+        reviews = 0
+      WHERE deck_id = ?
+    `, [now, deckId]);
+    
+    // Also clear logs for these cards if we want a full reset
+    const cards = await this.getCards(deckId);
+    const cardIds = cards.map(c => c.id);
+    if (cardIds.length > 0) {
+      const placeholders = cardIds.map(() => '?').join(',');
+      this.db.run(`DELETE FROM logs WHERE card_id IN (${placeholders})`, cardIds);
+    }
+
+    await this.save();
   }
 
   // --- Spaced Repetition Logic (SM-2 Inspired) ---

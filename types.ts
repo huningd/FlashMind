@@ -13,7 +13,7 @@ export interface Card {
   id: number;
   deck_id: number;
   front_text: string;
-  front_image?: Uint8Array | null; 
+  front_images?: Uint8Array[]; // List of front images
   back_text: string;
   back_image?: Uint8Array | null;
   created_at: number;
@@ -34,6 +34,6 @@ export interface ReviewLog {
 export interface CardFormData {
   frontText: string;
   backText: string;
-  frontImage: File | null;
+  frontImages: File[];
   backImage: File | null;
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../types';
 import { db } from '../services/db';
-import { ArrowLeft, RotateCw } from 'lucide-react';
+import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface StudySessionProps {
@@ -15,7 +15,8 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [currentImageIdx, setCurrentImageIdx] = useState(0);
 
   useEffect(() => {
     const loadCards = async () => {
@@ -31,17 +32,41 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
     if (queue.length === 0 || currentIndex >= queue.length) return;
     
     const card = queue[currentIndex];
-    const imageBlob = isFlipped ? card.back_image : card.front_image;
     
-    if (imageBlob) {
-      const blob = new Blob([imageBlob]);
-      const url = URL.createObjectURL(blob);
-      setImageUrl(url);
-      return () => URL.revokeObjectURL(url);
+    if (isFlipped) {
+      if (card.back_image) {
+        const blob = new Blob([card.back_image]);
+        const url = URL.createObjectURL(blob);
+        setImageUrls([url]);
+        setCurrentImageIdx(0);
+        return () => URL.revokeObjectURL(url);
+      } else {
+        setImageUrls([]);
+      }
     } else {
-      setImageUrl(null);
+      if (card.front_images && card.front_images.length > 0) {
+        const urls = card.front_images.map(img => {
+          const blob = new Blob([img]);
+          return URL.createObjectURL(blob);
+        });
+        setImageUrls(urls);
+        setCurrentImageIdx(0);
+        return () => urls.forEach(url => URL.revokeObjectURL(url));
+      } else {
+        setImageUrls([]);
+      }
     }
   }, [currentIndex, isFlipped, queue]);
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIdx(prev => (prev + 1) % imageUrls.length);
+  };
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIdx(prev => (prev - 1 + imageUrls.length) % imageUrls.length);
+  };
 
   const handleRate = async (rating: number) => {
     if (currentIndex >= queue.length) return;
@@ -128,13 +153,40 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                 </p>
                 
                 {/* Content */}
-                <div className="text-center w-full space-y-4 sm:space-y-6">
-                    {imageUrl && (
-                        <img 
-                            src={imageUrl} 
-                            alt="Card visual" 
-                            className="max-h-48 sm:max-h-64 max-w-full mx-auto rounded-lg shadow-sm object-contain bg-gray-50 dark:bg-gray-900"
-                        />
+                <div className="text-center w-full space-y-4 sm:space-y-6 relative">
+                    {imageUrls.length > 0 && (
+                        <div className="relative group">
+                            <img 
+                                src={imageUrls[currentImageIdx]} 
+                                alt="Card visual" 
+                                className="max-h-48 sm:max-h-64 max-w-full mx-auto rounded-lg shadow-sm object-contain bg-gray-50 dark:bg-gray-900"
+                            />
+                            
+                            {imageUrls.length > 1 && !isFlipped && (
+                                <>
+                                    <button 
+                                        onClick={handlePrevImage}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <ChevronLeft size={20} />
+                                    </button>
+                                    <button 
+                                        onClick={handleNextImage}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <ChevronRight size={20} />
+                                    </button>
+                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                                        {imageUrls.map((_, idx) => (
+                                            <div 
+                                                key={idx} 
+                                                className={`w-1.5 h-1.5 rounded-full transition-colors ${idx === currentImageIdx ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     )}
                     <p className="text-xl sm:text-3xl font-medium text-gray-800 dark:text-gray-100 break-words px-2 sm:px-4">
                         {isFlipped ? currentCard.back_text : currentCard.front_text}

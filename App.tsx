@@ -8,7 +8,7 @@ import { StudyOverview } from './components/StudyOverview';
 import { AIGenerator } from './components/AIGenerator';
 import { Settings } from './components/Settings';
 import { Disclaimer } from './components/Disclaimer';
-import { Plus, Trash, ArrowLeft, RotateCw, Layers, BarChart3, Pencil, Sparkles, AlertTriangle, Moon, Sun, Settings as SettingsIcon, Info } from 'lucide-react';
+import { Plus, Trash, ArrowLeft, RotateCw, RotateCcw, Layers, BarChart3, Pencil, Sparkles, AlertTriangle, Moon, Sun, Settings as SettingsIcon, Info } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 
 enum View {
@@ -111,6 +111,15 @@ const App: React.FC = () => {
         setCards(c);
         await refreshDecks();
       }
+    }
+  };
+
+  const resetDeckProgress = async () => {
+    if (selectedDeck && confirm(t('deck.reset_confirm'))) {
+      await db.resetDeckCards(selectedDeck.id);
+      const c = await db.getCards(selectedDeck.id);
+      setCards(c);
+      await refreshDecks();
     }
   };
 
@@ -240,12 +249,21 @@ const App: React.FC = () => {
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white break-words">{selectedDeck.name}</h2>
                 <p className="text-gray-500 dark:text-gray-400 mt-1">{cards.length} {t('deck.count_cards')}</p>
               </div>
-              <button 
-                onClick={() => setView(View.STUDY)}
-                className="w-full sm:w-auto bg-primary hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-md transition-colors flex items-center justify-center"
-              >
-                <RotateCw size={18} className="mr-2" /> {t('deck.learn_now')}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button 
+                  onClick={resetDeckProgress}
+                  className="w-full sm:w-auto border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 px-4 py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center"
+                  title={t('deck.reset_progress')}
+                >
+                  <RotateCcw size={18} className="mr-2" /> {t('deck.reset_progress')}
+                </button>
+                <button 
+                  onClick={() => setView(View.STUDY)}
+                  className="w-full sm:w-auto bg-primary hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-md transition-colors flex items-center justify-center"
+                >
+                  <Layers size={18} className="mr-2" /> {t('deck.learn_now')}
+                </button>
+              </div>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">

@@ -15,9 +15,9 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
   const { t } = useLanguage();
   const [frontText, setFrontText] = useState('');
   const [backText, setBackText] = useState('');
-  const [frontImage, setFrontImage] = useState<Uint8Array | null>(null);
+  const [frontImages, setFrontImages] = useState<Uint8Array[]>([]);
   const [backImage, setBackImage] = useState<Uint8Array | null>(null);
-  const [frontPreview, setFrontPreview] = useState<string | null>(null);
+  const [frontPreviews, setFrontPreviews] = useState<string[]>([]);
   const [backPreview, setBackPreview] = useState<string | null>(null);
   
   const [activeSide, setActiveSide] = useState<'front' | 'back'>('front');
@@ -27,12 +27,15 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
     if (cardToEdit) {
       setFrontText(cardToEdit.front_text);
       setBackText(cardToEdit.back_text);
-      setFrontImage(cardToEdit.front_image || null);
+      setFrontImages(cardToEdit.front_images || []);
       setBackImage(cardToEdit.back_image || null);
 
-      if (cardToEdit.front_image) {
-        const blob = new Blob([cardToEdit.front_image]);
-        setFrontPreview(URL.createObjectURL(blob));
+      if (cardToEdit.front_images && cardToEdit.front_images.length > 0) {
+        const previews = cardToEdit.front_images.map(img => {
+          const blob = new Blob([img]);
+          return URL.createObjectURL(blob);
+        });
+        setFrontPreviews(previews);
       }
       if (cardToEdit.back_image) {
         const blob = new Blob([cardToEdit.back_image]);
@@ -42,37 +45,52 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
     
     // Cleanup preview URLs on unmount
     return () => {
-      if (frontPreview) URL.revokeObjectURL(frontPreview);
+      frontPreviews.forEach(url => URL.revokeObjectURL(url));
       if (backPreview) URL.revokeObjectURL(backPreview);
     };
   }, [cardToEdit]); // Run only when cardToEdit changes
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const buffer = evt.target?.result as ArrayBuffer;
-      const uint8Array = new Uint8Array(buffer);
-      const blob = new Blob([uint8Array]);
-      const previewUrl = URL.createObjectURL(blob);
+    const processFile = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const buffer = evt.target?.result as ArrayBuffer;
+        const uint8Array = new Uint8Array(buffer);
+        const blob = new Blob([uint8Array]);
+        const previewUrl = URL.createObjectURL(blob);
 
-      if (side === 'front') {
-        setFrontImage(uint8Array);
-        setFrontPreview(previewUrl);
-      } else {
-        setBackImage(uint8Array);
-        setBackPreview(previewUrl);
-      }
+        if (side === 'front') {
+          setFrontImages(prev => [...prev, uint8Array]);
+          setFrontPreviews(prev => [...prev, previewUrl]);
+        } else {
+          setBackImage(uint8Array);
+          setBackPreview(previewUrl);
+        }
+      };
+      reader.readAsArrayBuffer(file);
     };
-    reader.readAsArrayBuffer(file);
+
+    if (side === 'front') {
+      Array.from(files).forEach(processFile);
+    } else {
+      processFile(files[0]);
+    }
   };
 
-  const removeImage = (side: 'front' | 'back') => {
+  const removeImage = (side: 'front' | 'back', index?: number) => {
     if (side === 'front') {
-      setFrontImage(null);
-      setFrontPreview(null);
+      if (index !== undefined) {
+        const newImages = [...frontImages];
+        const newPreviews = [...frontPreviews];
+        URL.revokeObjectURL(newPreviews[index]);
+        newImages.splice(index, 1);
+        newPreviews.splice(index, 1);
+        setFrontImages(newImages);
+        setFrontPreviews(newPreviews);
+      }
     } else {
       setBackImage(null);
       setBackPreview(null);
@@ -81,14 +99,14 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!frontText.trim() && !frontImage) return; // Need at least something on front
+    if (!frontText.trim() && frontImages.length === 0) return; // Need at least something on front
 
     if (cardToEdit) {
       // Update existing card
       await db.updateCard({
         ...cardToEdit,
         front_text: frontText,
-        front_image: frontImage,
+        front_images: frontImages,
         back_text: backText,
         back_image: backImage
       });
@@ -99,7 +117,7 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
       await db.createCard({
         deck_id: deckId,
         front_text: frontText,
-        front_image: frontImage,
+        front_images: frontImages,
         back_text: backText,
         back_image: backImage
       });
@@ -108,9 +126,9 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
       // Reset form for next card (keep modal open)
       setFrontText('');
       setBackText('');
-      setFrontImage(null);
+      setFrontImages([]);
       setBackImage(null);
-      setFrontPreview(null);
+      setFrontPreviews([]);
       setBackPreview(null);
       setActiveSide('front');
     }
@@ -160,26 +178,27 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
               
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('editor.image_label')}</label>
-                {!frontPreview ? (
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('editor.upload')}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {frontPreviews.map((preview, idx) => (
+                    <div key={idx} className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 aspect-video">
+                      <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage('front', idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-md hover:bg-red-600 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'front')} />
+                  ))}
+                  <label className="flex flex-col items-center justify-center w-full aspect-video border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      <ImageIcon className="w-6 h-6 text-gray-400 dark:text-gray-500 mb-1" />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('editor.upload')}</p>
+                    </div>
+                    <input type="file" className="hidden" accept="image/*" multiple onChange={(e) => handleImageUpload(e, 'front')} />
                   </label>
-                ) : (
-                  <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600">
-                    <img src={frontPreview} alt="Preview" className="w-full h-48 object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeImage('front')}
-                      className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
 
