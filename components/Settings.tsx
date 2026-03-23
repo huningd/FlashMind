@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Key, Trash2, CheckCircle2, AlertTriangle, ShieldCheck, Globe, Download, Upload } from 'lucide-react';
+import { Save, Key, Trash2, CheckCircle2, AlertTriangle, ShieldCheck, Globe, Download, Upload, Archive, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { db } from '../services/db';
+import JSZip from 'jszip';
 
 interface SettingsProps {
   onClose: () => void;
@@ -13,6 +15,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [hasEnvKey, setHasEnvKey] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,6 +65,36 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const decks = await db.getDecks();
+      const zip = new JSZip();
+      
+      for (const deck of decks) {
+        const json = await db.exportDeck(deck.id);
+        // Sanitize filename
+        const safeName = deck.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        zip.file(`${safeName}_${deck.id}.json`, json);
+      }
+      
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flashmind_backup_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Backup failed", e);
+      alert("Backup fehlgeschlagen.");
+    } finally {
+      setIsBackingUp(false);
+    }
   };
 
   return (
@@ -196,6 +229,27 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
               )}
             </div>
           </form>
+        </div>
+      </div>
+
+      {/* Backup Settings */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex items-center gap-2">
+          <Archive className="text-primary" size={20} />
+          <h3 className="font-semibold text-gray-700 dark:text-gray-200">{t('settings.backup_title')}</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {t('settings.backup_desc')}
+          </p>
+          <button
+            onClick={handleBackup}
+            disabled={isBackingUp}
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-3 rounded-lg shadow-sm transition-all font-medium"
+          >
+            {isBackingUp ? <Loader2 className="animate-spin" size={20} /> : <Archive size={20} />}
+            {isBackingUp ? t('settings.backup_loading') : t('settings.backup_btn')}
+          </button>
         </div>
       </div>
       

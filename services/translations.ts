@@ -120,6 +120,10 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "settings.import_lang": "Sprachdatei importieren",
     "settings.import_success": "Sprache erfolgreich importiert!",
     "settings.import_error": "Fehler beim Import der Sprachdatei.",
+    "settings.backup_title": "Datensicherung",
+    "settings.backup_desc": "Sichere alle deine Stapel und Karten in einer ZIP-Datei.",
+    "settings.backup_btn": "Backup erstellen",
+    "settings.backup_loading": "Erstelle Backup...",
     "settings.back": "Zurück zur Übersicht",
 
     "disclaimer.title": "Haftungsausschluss & Datenschutz",
@@ -244,6 +248,10 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "settings.import_lang": "Import Language File",
     "settings.import_success": "Language imported successfully!",
     "settings.import_error": "Error importing language file.",
+    "settings.backup_title": "Backup",
+    "settings.backup_desc": "Backup all your decks and cards into a ZIP file.",
+    "settings.backup_btn": "Create Backup",
+    "settings.backup_loading": "Creating Backup...",
     "settings.back": "Back to Overview",
 
     "disclaimer.title": "Disclaimer & Privacy",

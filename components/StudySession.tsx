@@ -1,8 +1,118 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../types';
 import { db } from '../services/db';
-import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+
+interface ImageModalProps {
+  url: string;
+  onClose: () => void;
+}
+
+const ImageModal: React.FC<ImageModalProps> = ({ url, onClose }) => {
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.5, 4));
+  const handleZoomOut = () => {
+    setScale(prev => {
+      const newScale = Math.max(prev - 0.5, 1);
+      if (newScale === 1) setPosition({ x: 0, y: 0 });
+      return newScale;
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale === 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (scale === 1) return;
+    setIsDragging(true);
+    const touch = e.touches[0];
+    setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    setPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleEnd = () => setIsDragging(false);
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center overflow-hidden touch-none"
+      onMouseMove={handleMouseMove}
+      onTouchMove={handleTouchMove}
+      onMouseUp={handleEnd}
+      onTouchEnd={handleEnd}
+      onMouseLeave={handleEnd}
+    >
+      <div className="absolute top-4 right-4 flex gap-2 z-10">
+        <button 
+          onClick={handleZoomIn}
+          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          title="Zoom In"
+        >
+          <ZoomIn size={24} />
+        </button>
+        <button 
+          onClick={handleZoomOut}
+          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          title="Zoom Out"
+        >
+          <ZoomOut size={24} />
+        </button>
+        <button 
+          onClick={onClose}
+          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          title="Close"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      <div 
+        className={`relative ${!isDragging ? 'transition-transform duration-200 ease-out' : ''} ${isDragging ? 'cursor-grabbing' : scale > 1 ? 'cursor-grab' : 'cursor-default'}`}
+        style={{ 
+          transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+        }}
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
+      >
+        <img 
+          src={url} 
+          alt="Full screen" 
+          className="max-w-[90vw] max-h-[90vh] object-contain select-none"
+          draggable={false}
+        />
+      </div>
+      
+      {scale > 1 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-xs font-medium bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+          Drag to pan • {Math.round(scale * 100)}%
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface StudySessionProps {
   deckId: number;
@@ -17,6 +127,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
   const [loading, setLoading] = useState(true);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
+  const [modalUrl, setModalUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCards = async () => {
@@ -78,6 +189,28 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
     setIsFlipped(false);
     setCurrentIndex(prev => prev + 1);
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (modalUrl) return; // Disable shortcuts when modal is open
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!isFlipped) {
+          setIsFlipped(true);
+        }
+      } else if (isFlipped) {
+        if (e.key === '1') handleRate(1);
+        else if (e.key === '2') handleRate(2);
+        else if (e.key === '3') handleRate(3);
+        else if (e.key === '4') handleRate(4);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFlipped, currentIndex, queue, modalUrl]);
 
   if (loading) {
     return (
@@ -156,11 +289,27 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                 <div className="text-center w-full space-y-4 sm:space-y-6 relative">
                     {imageUrls.length > 0 && (
                         <div className="relative group">
-                            <img 
-                                src={imageUrls[currentImageIdx]} 
-                                alt="Card visual" 
-                                className="max-h-48 sm:max-h-64 max-w-full mx-auto rounded-lg shadow-sm object-contain bg-gray-50 dark:bg-gray-900"
-                            />
+                            <div className="relative inline-block">
+                                <img 
+                                    src={imageUrls[currentImageIdx]} 
+                                    alt="Card visual" 
+                                    className="max-h-48 sm:max-h-64 max-w-full mx-auto rounded-lg shadow-sm object-contain bg-gray-50 dark:bg-gray-900 cursor-zoom-in"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setModalUrl(imageUrls[currentImageIdx]);
+                                    }}
+                                />
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setModalUrl(imageUrls[currentImageIdx]);
+                                    }}
+                                    className="absolute bottom-2 right-2 p-1.5 bg-black/40 hover:bg-black/60 text-white rounded-lg backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                                    title="Enlarge"
+                                >
+                                    <Maximize2 size={16} />
+                                </button>
+                            </div>
                             
                             {imageUrls.length > 1 && !isFlipped && (
                                 <>
@@ -239,6 +388,13 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
              <div className="h-full"></div>
         )}
       </div>
+
+      {modalUrl && (
+        <ImageModal 
+          url={modalUrl} 
+          onClose={() => setModalUrl(null)} 
+        />
+      )}
     </div>
   );
 };
