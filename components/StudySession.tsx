@@ -197,9 +197,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
 
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!isFlipped) {
-          setIsFlipped(true);
-        }
+        setIsFlipped(!isFlipped);
       } else if (isFlipped) {
         if (e.key === '1') handleRate(1);
         else if (e.key === '2') handleRate(2);
@@ -277,7 +275,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
       {/* The Flashcard */}
       <div className="flex-1 perspective-1000 relative min-h-[300px] flex flex-col">
         <div 
-            onClick={() => !isFlipped && setIsFlipped(true)}
+            onClick={() => setIsFlipped(!isFlipped)}
             className={`w-full flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-500 ${!isFlipped ? 'hover:shadow-2xl' : ''}`}
         >
             <div className="flex-1 flex flex-col items-center justify-center w-full">
@@ -343,11 +341,9 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                 </div>
             </div>
             
-            {!isFlipped && (
-                <div className="mt-8 text-gray-400 dark:text-gray-600 text-sm animate-pulse text-center">
-                    {t('study.flip')}
-                </div>
-            )}
+            <div className="mt-8 text-gray-400 dark:text-gray-600 text-sm animate-pulse text-center">
+                {t('study.flip')}
+            </div>
         </div>
       </div>
 
