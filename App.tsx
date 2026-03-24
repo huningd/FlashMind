@@ -61,6 +61,27 @@ const App: React.FC = () => {
     const init = async () => {
       try {
         await db.init();
+        
+        // Handle shared file
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('shared') === 'true') {
+          try {
+            const cache = await caches.open('shared-files');
+            const response = await cache.match('/shared-deck.json');
+            if (response) {
+              const content = await response.text();
+              await db.importDeck(content);
+              // Clean up
+              await cache.delete('/shared-deck.json');
+              // Remove query param
+              window.history.replaceState({}, document.title, '/');
+              alert(t('deck.import.success'));
+            }
+          } catch (e) {
+            console.error('Shared file import failed', e);
+          }
+        }
+
         await refreshDecks();
       } catch (e: any) {
         console.error("DB Init error", e);

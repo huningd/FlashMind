@@ -16,6 +16,26 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Handle share_target POST request
+  if (event.request.method === 'POST' && event.request.url.includes('/import-share')) {
+    event.respondWith((async () => {
+      try {
+        const formData = await event.request.formData();
+        const file = formData.get('deck');
+        if (file) {
+          const cache = await caches.open('shared-files');
+          await cache.put('/shared-deck.json', new Response(file));
+        }
+        // Redirect to home with shared flag
+        return Response.redirect('/?shared=true', 303);
+      } catch (e) {
+        console.error('Share target error', e);
+        return Response.redirect('/', 303);
+      }
+    })());
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
