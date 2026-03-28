@@ -240,24 +240,35 @@ class DatabaseService {
       throw new Error("Ungültige Stapel-Daten");
     }
 
-    // Create new deck with suffix to avoid confusion
-    const deckId = await this.createDeck(`${data.name} (Import)`, data.description || "");
-
-    const cardStmt = this.db.prepare(`
-      INSERT INTO cards (
-        deck_id, front_text, back_text, back_image, 
-        created_at, next_review_due, interval, ease_factor, reviews
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const imageStmt = this.db.prepare(`
-      INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)
-    `);
-
     const now = Date.now();
-    
+    let cardStmt: any;
+    let imageStmt: any;
+
     try {
       this.db.exec("BEGIN TRANSACTION");
+
+      // 1. Create Deck inside transaction
+      this.db.run("INSERT INTO decks (name, description, created_at) VALUES (?, ?, ?)", [
+        `${data.name} (Import)`, 
+        data.description || "", 
+        now
+      ]);
+      const deckRes = this.db.exec("SELECT last_insert_rowid()");
+      const deckId = deckRes[0].values[0][0] as number;
+
+      // 2. Prepare statements
+      cardStmt = this.db.prepare(`
+        INSERT INTO cards (
+          deck_id, front_text, back_text, back_image, 
+          created_at, next_review_due, interval, ease_factor, reviews
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      imageStmt = this.db.prepare(`
+        INSERT INTO card_front_images (card_id, image, position) VALUES (?, ?, ?)
+      `);
+
+      // 3. Insert Cards
       for (const card of data.cards) {
         cardStmt.run([
           deckId,
@@ -283,17 +294,23 @@ class DatabaseService {
           imageStmt.run([cardId, this.base64ToU8(card.front_image), 0]);
         }
       }
+
       this.db.exec("COMMIT");
+      
+      // 4. Save only once at the very end
+      await this.save();
     } catch (e) {
-      this.db.exec("ROLLBACK");
-      cardStmt.free();
-      imageStmt.free();
+      try {
+        this.db.exec("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Rollback failed", rollbackError);
+      }
+      console.error("Import failed:", e);
       throw e;
-    } 
-    
-    cardStmt.free();
-    imageStmt.free();
-    await this.save();
+    } finally {
+      if (cardStmt) cardStmt.free();
+      if (imageStmt) imageStmt.free();
+    }
   }
 
   // --- Cards ---

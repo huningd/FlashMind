@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Deck } from '../types';
 import { db } from '../services/db';
-import { Plus, Trash2, BookOpen, Layers, Download, Upload, Info } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Layers, Download, Upload, Info, RotateCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface DeckListProps {
@@ -15,6 +15,7 @@ export const DeckList: React.FC<DeckListProps> = ({ decks, onSelectDeck, onRefre
   const [newDeckName, setNewDeckName] = useState('');
   const [newDeckDescription, setNewDeckDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -61,6 +62,7 @@ export const DeckList: React.FC<DeckListProps> = ({ decks, onSelectDeck, onRefre
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsImporting(true);
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -71,14 +73,29 @@ export const DeckList: React.FC<DeckListProps> = ({ decks, onSelectDeck, onRefre
       } catch (err) {
         console.error(err);
         alert(t('deck.import.error'));
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      alert(t('deck.import.error'));
+      setIsImporting(false);
     };
     reader.readAsText(file);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      {isImporting && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs text-center">
+            <RotateCw className="animate-spin text-primary mb-4" size={40} />
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Importiere Stapel...</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Dies kann bei großen Stapeln mit vielen Bildern einen Moment dauern.</p>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{t('deck.your_decks')}</h2>
         <div className="flex gap-2">
