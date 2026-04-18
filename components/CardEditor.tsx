@@ -3,6 +3,8 @@ import { db } from '../services/db';
 import { Card } from '../types';
 import { X, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface CardEditorProps {
   deckId: number;
@@ -176,6 +178,15 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
                 placeholder={t('editor.placeholder_front')}
               />
               
+              {frontText && (
+                <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">Preview</span>
+                  <div className="markdown-body text-sm">
+                    <Markdown remarkPlugins={[remarkGfm]}>{frontText}</Markdown>
+                  </div>
+                </div>
+              )}
+              
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('editor.image_label')}</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -210,6 +221,15 @@ export const CardEditor: React.FC<CardEditorProps> = ({ deckId, onClose, onSaved
                 className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-xl p-3 h-32 focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
                 placeholder={t('editor.placeholder_back')}
               />
+              
+              {backText && (
+                <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">Preview</span>
+                  <div className="markdown-body text-sm">
+                    <Markdown remarkPlugins={[remarkGfm]}>{backText}</Markdown>
+                  </div>
+                </div>
+              )}
                <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('editor.image_label')}</label>
                 {!backPreview ? (

@@ -3,6 +3,8 @@ import { generateFlashcardsFromImage, generateFlashcardsFromText, AI_Flashcard }
 import { db } from '../services/db';
 import { X, Upload, Sparkles, Check, Loader2, AlertCircle, Type, ImageIcon, Info } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface AIGeneratorProps {
   deckId: number;
@@ -273,11 +275,15 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ deckId, deckDescriptio
                          <div className="flex-1 space-y-2">
                            <div>
                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{t('editor.front')}</span>
-                             <p className="text-gray-800 dark:text-gray-200 text-sm font-medium whitespace-pre-wrap">{card.front}</p>
+                              <div className="text-gray-800 dark:text-gray-200 text-sm font-medium markdown-body">
+                                <Markdown remarkPlugins={[remarkGfm]}>{card.front}</Markdown>
+                              </div>
                            </div>
                            <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{t('editor.back')}</span>
-                             <p className="text-gray-600 dark:text-gray-300 text-sm whitespace-pre-wrap">{card.back}</p>
+                              <div className="text-gray-600 dark:text-gray-300 text-sm markdown-body">
+                                <Markdown remarkPlugins={[remarkGfm]}>{card.back}</Markdown>
+                              </div>
                            </div>
                          </div>
                        </div>

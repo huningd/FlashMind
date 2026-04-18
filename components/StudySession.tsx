@@ -3,6 +3,8 @@ import { Card } from '../types';
 import { db } from '../services/db';
 import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ImageModalProps {
   url: string;
@@ -335,9 +337,11 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                             )}
                         </div>
                     )}
-                    <p className="text-xl sm:text-3xl font-medium text-gray-800 dark:text-gray-100 break-words px-2 sm:px-4 whitespace-pre-wrap">
-                        {isFlipped ? currentCard.back_text : currentCard.front_text}
-                    </p>
+                    <div className="text-xl sm:text-3xl font-medium text-gray-800 dark:text-gray-100 break-words px-2 sm:px-4 markdown-body text-left w-full">
+                        <Markdown remarkPlugins={[remarkGfm]}>
+                          {isFlipped ? currentCard.back_text : currentCard.front_text}
+                        </Markdown>
+                    </div>
                 </div>
             </div>
             
