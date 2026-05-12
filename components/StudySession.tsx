@@ -195,11 +195,26 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (modalUrl) return; // Disable shortcuts when modal is open
+      if (modalUrl) {
+        if (e.key === 'Escape') setModalUrl(null);
+        return;
+      }
 
-      if (e.code === 'Space') {
+      if (e.code === 'Space' || e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        // Don't flip if we're interactive with something else, but usually we aren't in study
+        if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
         e.preventDefault();
         setIsFlipped(!isFlipped);
+      } else if (!isFlipped && imageUrls.length > 1) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setCurrentImageIdx(prev => (prev - 1 + imageUrls.length) % imageUrls.length);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setCurrentImageIdx(prev => (prev + 1) % imageUrls.length);
+        }
       } else if (isFlipped) {
         if (e.key === '1') handleRate(1);
         else if (e.key === '2') handleRate(2);
@@ -210,7 +225,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped, currentIndex, queue, modalUrl]);
+  }, [isFlipped, currentIndex, queue, modalUrl, imageUrls]);
 
   if (loading) {
     return (
@@ -288,7 +303,11 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                 {/* Content */}
                 <div className="text-center w-full space-y-4 sm:space-y-6 relative">
                     {imageUrls.length > 0 && (
-                        <div className="relative group">
+                        <div 
+                            className="relative group outline-none focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all"
+                            tabIndex={0}
+                            aria-label="Image gallery"
+                        >
                             <div className="relative inline-block">
                                 <img 
                                     src={imageUrls[currentImageIdx]} 
@@ -345,8 +364,9 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
                 </div>
             </div>
             
-            <div className="mt-8 text-gray-400 dark:text-gray-600 text-sm animate-pulse text-center">
-                {t('study.flip')}
+            <div className="mt-8 text-gray-400 dark:text-gray-600 text-sm animate-pulse text-center flex flex-col items-center gap-1">
+                <span>{t('study.flip')}</span>
+                <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 font-mono">SPACE / ENTER</span>
             </div>
         </div>
       </div>
@@ -357,31 +377,35 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
             <div className="grid grid-cols-4 gap-2 sm:gap-3 h-full pb-2">
                 <button 
                     onClick={() => handleRate(1)}
-                    className="flex flex-col items-center justify-center bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-xl transition-colors py-2 sm:py-0"
+                    className="flex flex-col items-center justify-center bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-xl transition-colors py-2 sm:py-0 relative group"
                 >
                     <span className="font-bold text-sm sm:text-lg">{t('study.again')}</span>
                     <span className="text-[10px] sm:text-xs opacity-75">&lt; 10m</span>
+                    <span className="hidden sm:block absolute -top-2 -right-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm">1</span>
                 </button>
                 <button 
                     onClick={() => handleRate(2)}
-                    className="flex flex-col items-center justify-center bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-xl transition-colors py-2 sm:py-0"
+                    className="flex flex-col items-center justify-center bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-xl transition-colors py-2 sm:py-0 relative group"
                 >
                     <span className="font-bold text-sm sm:text-lg">{t('study.hard')}</span>
                     <span className="text-[10px] sm:text-xs opacity-75">2d</span>
+                    <span className="hidden sm:block absolute -top-2 -right-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm">2</span>
                 </button>
                 <button 
                     onClick={() => handleRate(3)}
-                    className="flex flex-col items-center justify-center bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-xl transition-colors py-2 sm:py-0"
+                    className="flex flex-col items-center justify-center bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-xl transition-colors py-2 sm:py-0 relative group"
                 >
                     <span className="font-bold text-sm sm:text-lg">{t('study.good')}</span>
                     <span className="text-[10px] sm:text-xs opacity-75">4d</span>
+                    <span className="hidden sm:block absolute -top-2 -right-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm">3</span>
                 </button>
                 <button 
                     onClick={() => handleRate(4)}
-                    className="flex flex-col items-center justify-center bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 rounded-xl transition-colors py-2 sm:py-0"
+                    className="flex flex-col items-center justify-center bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 rounded-xl transition-colors py-2 sm:py-0 relative group"
                 >
                     <span className="font-bold text-sm sm:text-lg">{t('study.easy')}</span>
                     <span className="text-[10px] sm:text-xs opacity-75">7d</span>
+                    <span className="hidden sm:block absolute -top-2 -right-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm">4</span>
                 </button>
             </div>
         ) : (
