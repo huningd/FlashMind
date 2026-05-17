@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../types';
 import { db } from '../services/db';
-import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ArrowLeft, RotateCw, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize2, RotateCcw, Check } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'motion/react';
 
 interface ImageModalProps {
   url: string;
@@ -130,6 +131,17 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [modalUrl, setModalUrl] = useState<string | null>(null);
+
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-25, 25]);
+  const opacity = useTransform(x, [-200, -150, 0, 150, 200], [0, 1, 1, 1, 0]);
+  
+  const againOpacity = useTransform(x, [-150, -50], [1, 0]);
+  const easyOpacity = useTransform(x, [50, 150], [0, 1]);
+
+  useEffect(() => {
+    x.set(0);
+  }, [currentIndex, isFlipped, x]);
 
   useEffect(() => {
     const loadCards = async () => {
@@ -274,6 +286,16 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
   const currentCard = queue[currentIndex];
   const progress = ((currentIndex) / queue.length) * 100;
 
+  const handleDragEnd = (_: any, info: any) => {
+    if (!isFlipped) return;
+    
+    if (info.offset.x < -100) {
+      handleRate(1); // Again
+    } else if (info.offset.x > 100) {
+      handleRate(4); // Easy
+    }
+  };
+
   return (
     <div className="max-w-xl mx-auto h-full flex flex-col justify-between pb-safe">
       {/* Header with Progress */}
@@ -291,11 +313,38 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
 
       {/* The Flashcard */}
       <div className="flex-1 perspective-1000 relative min-h-[300px] flex flex-col">
-        <div 
-            onClick={() => setIsFlipped(!isFlipped)}
-            className={`w-full flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-500 ${!isFlipped ? 'hover:shadow-2xl' : ''}`}
-        >
-            <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <AnimatePresence mode="wait">
+          <motion.div 
+              key={`${currentIndex}-${isFlipped}`}
+              style={{ x, rotate, opacity }}
+              drag={isFlipped ? "x" : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={handleDragEnd}
+              onClick={() => setIsFlipped(!isFlipped)}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className={`w-full flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer transition-shadow duration-500 ${!isFlipped ? 'hover:shadow-2xl' : ''}`}
+          >
+              {/* Swipe Indicators */}
+              <motion.div 
+                style={{ opacity: againOpacity }}
+                className="absolute left-8 top-12 z-20 border-4 border-red-500 rounded-lg px-4 py-1 rotate-[-20deg] pointer-events-none flex flex-col items-center"
+              >
+                <RotateCcw className="text-red-500 mb-1" size={24} />
+                <span className="text-red-500 font-bold text-2xl uppercase">{t('study.again')}</span>
+              </motion.div>
+              
+              <motion.div 
+                style={{ opacity: easyOpacity }}
+                className="absolute right-8 top-12 z-20 border-4 border-green-500 rounded-lg px-4 py-1 rotate-[20deg] pointer-events-none flex flex-col items-center"
+              >
+                <Check className="text-green-500 mb-1" size={24} />
+                <span className="text-green-500 font-bold text-2xl uppercase">{t('study.easy')}</span>
+              </motion.div>
+
+              <div className="flex-1 flex flex-col items-center justify-center w-full">
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-4 self-center">
                     {isFlipped ? t('study.answer') : t('study.question')}
                 </p>
@@ -365,10 +414,22 @@ export const StudySession: React.FC<StudySessionProps> = ({ deckId, onFinish }) 
             </div>
             
             <div className="mt-8 text-gray-400 dark:text-gray-600 text-sm animate-pulse text-center flex flex-col items-center gap-1">
-                <span>{t('study.flip')}</span>
-                <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 font-mono">SPACE / ENTER</span>
+                {isFlipped ? (
+                  <>
+                    <span className="flex items-center gap-2">
+                       <ChevronLeft size={16} /> {t('study.again')} • {t('study.easy')} <ChevronRight size={16} />
+                    </span>
+                    <span className="text-[10px] opacity-75 uppercase tracking-widest">{t('study.swipe_hint') || 'Swipe to rate'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{t('study.flip')}</span>
+                    <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 font-mono">SPACE / ENTER</span>
+                  </>
+                )}
             </div>
-        </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Controls */}

@@ -65,6 +65,7 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "study.hard": "Schwer",
     "study.good": "Gut",
     "study.easy": "Einfach",
+    "study.swipe_hint": "Wischen zum Bewerten",
 
     "editor.edit_title": "Karte bearbeiten",
     "editor.create_title": "Neue Karte erstellen",
@@ -193,6 +194,7 @@ export const defaultTranslations: Record<string, Dictionary> = {
     "study.hard": "Hard",
     "study.good": "Good",
     "study.easy": "Easy",
+    "study.swipe_hint": "Swipe to rate",
 
     "editor.edit_title": "Edit Card",
     "editor.create_title": "Create New Card",
